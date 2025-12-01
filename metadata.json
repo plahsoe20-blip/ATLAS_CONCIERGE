@@ -1,0 +1,9 @@
+{
+  "name": "ATLAS - Premium Concierge",
+  "description": "A high-fidelity luxury chauffeur platform featuring smart pricing, AI-powered concierge assistance, and fleet management.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera",
+    "geolocation"
+  ]
+}

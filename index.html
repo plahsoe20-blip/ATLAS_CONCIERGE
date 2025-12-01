@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ATLAS | Premium Concierge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              gold: {
+                50: '#fbf8eb',
+                100: '#f5edd1',
+                200: '#ebd8a3',
+                300: '#e0c070',
+                400: '#d6a945',
+                500: '#cb902f', // Brand Gold
+                600: '#ad7223',
+                700: '#8a551f',
+                800: '#714320',
+                900: '#5e361e',
+              },
+              zinc: {
+                850: '#1f1f22',
+                950: '#0c0c0e', // Deep black
+              }
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              serif: ['Playfair Display', 'serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        background-color: #050505;
+        color: #f4f4f5;
+      }
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0c0c0e;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #3f3f46;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #cb902f;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
