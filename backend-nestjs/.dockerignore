@@ -1,0 +1,60 @@
+node_modules
+dist
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# OS
+.DS_Store
+*.pem
+
+# Testing
+coverage
+*.lcov
+.nyc_output
+
+# IDEs
+.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Environment
+.env
+.env.local
+.env.production
+.env.test
+
+# Cache
+.cache
+.parcel-cache
+.eslintcache
+
+# Build
+dist
+build
+out
+
+# Prisma
+prisma/migrations/*.sql
+
+# Temp
+*.tmp
+*.temp
+.DS_Store

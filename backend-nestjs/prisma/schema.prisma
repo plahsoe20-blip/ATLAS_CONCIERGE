@@ -1,0 +1,510 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// MULTI-TENANT CORE MODELS
+// ============================================================================
+
+model Company {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  phone         String?
+  address       String?
+  city          String?
+  state         String?
+  zipCode       String?
+  country       String   @default("USA")
+  timezone      String   @default("America/New_York")
+  
+  // Subscription & Status
+  subscriptionTier    String   @default("FREE") // FREE, BASIC, PRO, ENTERPRISE
+  subscriptionStatus  String   @default("ACTIVE") // ACTIVE, SUSPENDED, CANCELLED
+  subscriptionExpiry  DateTime?
+  
+  // Settings
+  settings      Json     @default("{}")
+  metadata      Json     @default("{}")
+  
+  // Audit
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  users         User[]
+  drivers       Driver[]
+  vehicles      Vehicle[]
+  rides         Ride[]
+  payments      Payment[]
+  integrationLogs IntegrationLog[]
+  auditLogs     AuditLog[]
+
+  @@index([email])
+  @@index([subscriptionStatus])
+  @@map("companies")
+}
+
+enum UserRole {
+  COMPANY_ADMIN
+  DISPATCHER
+  DRIVER
+  CONCIERGE
+}
+
+model User {
+  id            String   @id @default(uuid())
+  companyId     String
+  email         String
+  passwordHash  String
+  
+  // Profile
+  firstName     String
+  lastName      String
+  phone         String?
+  avatar        String?
+  
+  // Role & Permissions
+  role          UserRole
+  permissions   Json     @default("[]")
+  
+  // Status
+  isActive      Boolean  @default(true)
+  isVerified    Boolean  @default(false)
+  lastLoginAt   DateTime?
+  
+  // Audit
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  driver        Driver?
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ============================================================================
+// DRIVER & VEHICLE MODELS
+// ============================================================================
+
+enum DriverStatus {
+  OFFLINE
+  AVAILABLE
+  BUSY
+  EN_ROUTE
+  ON_BREAK
+}
+
+model Driver {
+  id              String   @id @default(uuid())
+  companyId       String
+  userId          String   @unique
+  
+  // License & Verification
+  licenseNumber   String
+  licenseExpiry   DateTime
+  licenseState    String
+  isVerified      Boolean  @default(false)
+  verifiedAt      DateTime?
+  
+  // Status & Location
+  status          DriverStatus @default(OFFLINE)
+  currentLat      Float?
+  currentLng      Float?
+  lastLocationUpdate DateTime?
+  
+  // Ratings & Stats
+  rating          Float    @default(5.0)
+  totalRides      Int      @default(0)
+  totalEarnings   Float    @default(0)
+  
+  // Settings
+  acceptsRides    Boolean  @default(true)
+  metadata        Json     @default("{}")
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicles        Vehicle[]
+  rides           Ride[]
+  
+  @@index([companyId])
+  @@index([userId])
+  @@index([status])
+  @@map("drivers")
+}
+
+enum VehicleType {
+  SEDAN
+  SUV
+  VAN
+  LUXURY
+  WHEELCHAIR_ACCESSIBLE
+}
+
+model Vehicle {
+  id              String   @id @default(uuid())
+  companyId       String
+  driverId        String?
+  
+  // Vehicle Details
+  type            VehicleType
+  make            String
+  model           String
+  year            Int
+  color           String
+  licensePlate    String
+  vin             String?
+  
+  // Capacity
+  seats           Int      @default(4)
+  wheelchairAccessible Boolean @default(false)
+  
+  // Status
+  isActive        Boolean  @default(true)
+  lastServiceDate DateTime?
+  nextServiceDue  DateTime?
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  driver          Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  rides           Ride[]
+  
+  @@unique([companyId, licensePlate])
+  @@index([companyId])
+  @@index([driverId])
+  @@index([isActive])
+  @@map("vehicles")
+}
+
+// ============================================================================
+// RIDE & BOOKING MODELS
+// ============================================================================
+
+enum RideStatus {
+  PENDING
+  CONFIRMED
+  EN_ROUTE
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RideType {
+  IMMEDIATE
+  SCHEDULED
+  RECURRING
+}
+
+model Ride {
+  id              String   @id @default(uuid())
+  companyId       String
+  driverId        String?
+  vehicleId       String?
+  
+  // Booking Details
+  rideType        RideType
+  status          RideStatus @default(PENDING)
+  
+  // Customer Info
+  passengerName   String
+  passengerPhone  String
+  passengerEmail  String?
+  specialRequests String?
+  
+  // Pickup
+  pickupAddress   String
+  pickupLat       Float
+  pickupLng       Float
+  pickupTime      DateTime
+  
+  // Dropoff
+  dropoffAddress  String
+  dropoffLat      Float
+  dropoffLng      Float
+  estimatedDropoffTime DateTime?
+  actualDropoffTime DateTime?
+  
+  // Route & Pricing
+  distanceKm      Float?
+  durationMinutes Int?
+  baseFare        Float
+  distanceFare    Float    @default(0)
+  timeFare        Float    @default(0)
+  surcharge       Float    @default(0)
+  discount        Float    @default(0)
+  tax             Float    @default(0)
+  totalFare       Float
+  currency        String   @default("USD")
+  
+  // Metadata
+  notes           String?
+  metadata        Json     @default("{}")
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  cancellationReason String?
+  
+  // Relations
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  driver          Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  vehicle         Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  events          RideEvent[]
+  payments        Payment[]
+  
+  @@index([companyId])
+  @@index([driverId])
+  @@index([status])
+  @@index([pickupTime])
+  @@index([createdAt])
+  @@map("rides")
+}
+
+enum RideEventType {
+  CREATED
+  ASSIGNED
+  ACCEPTED
+  DRIVER_EN_ROUTE
+  DRIVER_ARRIVED
+  PICKUP_STARTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  STATUS_CHANGED
+  LOCATION_UPDATED
+}
+
+model RideEvent {
+  id              String   @id @default(uuid())
+  rideId          String
+  
+  // Event Details
+  type            RideEventType
+  description     String?
+  metadata        Json     @default("{}")
+  
+  // Location (if applicable)
+  latitude        Float?
+  longitude       Float?
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  ride            Ride     @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  
+  @@index([rideId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("ride_events")
+}
+
+// ============================================================================
+// PAYMENT MODELS
+// ============================================================================
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  CASH
+  INVOICE
+  SQUARE
+}
+
+model Payment {
+  id              String   @id @default(uuid())
+  companyId       String
+  rideId          String?
+  
+  // Payment Details
+  amount          Float
+  currency        String   @default("USD")
+  status          PaymentStatus
+  method          PaymentMethod
+  
+  // Square Integration
+  squarePaymentId String?  @unique
+  squareOrderId   String?
+  squareReceiptUrl String?
+  
+  // Transaction Info
+  transactionId   String?
+  authCode        String?
+  last4           String?
+  cardBrand       String?
+  
+  // Refund Info
+  refundAmount    Float?
+  refundedAt      DateTime?
+  refundReason    String?
+  
+  // Metadata
+  description     String?
+  metadata        Json     @default("{}")
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ride            Ride?    @relation(fields: [rideId], references: [id], onDelete: SetNull)
+  
+  @@index([companyId])
+  @@index([rideId])
+  @@index([status])
+  @@index([squarePaymentId])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+// ============================================================================
+// INTEGRATION & AUDIT MODELS
+// ============================================================================
+
+enum IntegrationService {
+  GOOGLE_MAPS
+  SQUARE_PAYMENTS
+  AWS_S3
+  TWILIO_SMS
+  SENDGRID_EMAIL
+}
+
+model IntegrationLog {
+  id              String   @id @default(uuid())
+  companyId       String
+  
+  // Integration Details
+  service         IntegrationService
+  action          String
+  endpoint        String?
+  
+  // Request/Response
+  requestData     Json?
+  responseData    Json?
+  statusCode      Int?
+  
+  // Status
+  success         Boolean
+  errorMessage    String?
+  
+  // Performance
+  durationMs      Int?
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@index([companyId])
+  @@index([service])
+  @@index([success])
+  @@index([createdAt])
+  @@map("integration_logs")
+}
+
+model AuditLog {
+  id              String   @id @default(uuid())
+  companyId       String
+  userId          String?
+  
+  // Action Details
+  action          String
+  entity          String
+  entityId        String?
+  
+  // Changes
+  oldValues       Json?
+  newValues       Json?
+  
+  // Request Context
+  ipAddress       String?
+  userAgent       String?
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([companyId])
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// SESSION MODELS
+// ============================================================================
+
+model Session {
+  id              String   @id @default(uuid())
+  userId          String
+  
+  // Session Details
+  token           String   @unique
+  refreshToken    String?  @unique
+  expiresAt       DateTime
+  
+  // Device Info
+  ipAddress       String?
+  userAgent       String?
+  deviceInfo      Json?
+  
+  // Status
+  isActive        Boolean  @default(true)
+  
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastActivityAt  DateTime @default(now())
+  
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+  @@index([refreshToken])
+  @@index([expiresAt])
+  @@map("sessions")
+}
