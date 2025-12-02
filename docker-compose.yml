@@ -1,0 +1,97 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: atlas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas_password
+      POSTGRES_DB: atlas_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend-nestjs/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U atlas']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - atlas-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: atlas-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - atlas-network
+
+  backend:
+    build:
+      context: ./backend-nestjs
+      dockerfile: Dockerfile
+      target: development
+    container_name: atlas-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://atlas:atlas_password@postgres:5432/atlas_dev?schema=public
+      REDIS_URL: redis://redis:6379
+      PORT: 4000
+    ports:
+      - '4000:4000'
+      - '4001:4001'
+    volumes:
+      - ./backend-nestjs:/app
+      - /app/node_modules
+      - /app/dist
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: npm run start:dev
+    networks:
+      - atlas-network
+
+  # Optional: Prisma Studio for database management
+  prisma-studio:
+    build:
+      context: ./backend-nestjs
+      dockerfile: Dockerfile
+      target: development
+    container_name: atlas-prisma-studio
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://atlas:atlas_password@postgres:5432/atlas_dev?schema=public
+    ports:
+      - '5555:5555'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npx prisma studio
+    networks:
+      - atlas-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  atlas-network:
+    driver: bridge
