@@ -14,7 +14,7 @@ export class GoogleMapsService {
   private apiKey: string;
 
   constructor(private configService: ConfigService) {
-    this.apiKey = this.configService.get('GOOGLE_MAPS_API_KEY');
+    this.apiKey = this.configService.get('GOOGLE_MAPS_API_KEY') || '';
     this.client = new Client({});
   }
 
@@ -142,8 +142,8 @@ export class GoogleMapsService {
       return response.data.results.map((place) => ({
         name: place.name,
         address: place.formatted_address,
-        lat: place.geometry.location.lat,
-        lng: place.geometry.location.lng,
+        lat: place.geometry?.location.lat || 0,
+        lng: place.geometry?.location.lng || 0,
         placeId: place.place_id,
         rating: place.rating,
         types: place.types,

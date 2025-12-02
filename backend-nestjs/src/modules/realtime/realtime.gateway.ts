@@ -152,7 +152,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
 
       // Notify driver if assigned
-      if (ride.driverId) {
+      if (ride.driverId && ride.driver) {
         this.server.to(`user:${ride.driver.userId}`).emit('ride:status:updated', {
           rideId: data.rideId,
           status: data.status,

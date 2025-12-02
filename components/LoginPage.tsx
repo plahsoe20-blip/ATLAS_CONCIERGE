@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserRole } from '../types';
 import { Button, Input } from './ui';
-import { User, Shield, Car, Briefcase, ChevronLeft, ArrowRight, Check } from 'lucide-react';
+import { User, Shield, Car, Briefcase, ChevronLeft, ArrowRight, Check, AlertCircle } from 'lucide-react';
 
 interface LoginPageProps {
   onLogin: (role: UserRole) => void;
@@ -12,15 +12,41 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
     setStep('LOGIN_FORM');
+    setError(null);
+    
+    // Pre-fill demo credentials
+    const demoCredentials: Record<UserRole, { email: string; password: string }> = {
+      CONCIERGE: { email: 'concierge@atlas.com', password: 'Password123!' },
+      DRIVER: { email: 'driver@atlas.com', password: 'Password123!' },
+      OPERATOR: { email: 'operator@atlas.com', password: 'Password123!' },
+      CLIENT: { email: 'client@atlas.com', password: 'Password123!' },
+      ADMIN: { email: 'admin@atlas.com', password: 'Password123!' }
+    };
+    
+    if (role in demoCredentials) {
+      setEmail(demoCredentials[role].email);
+      setPassword(demoCredentials[role].password);
+    }
   };
 
-  const handleLogin = () => {
-    if (selectedRole) {
-      onLogin(selectedRole);
+  const handleLogin = async () => {
+    if (!selectedRole) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      await onLogin(selectedRole);
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -135,12 +161,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 <p className="text-zinc-400">Enter your credentials to access your dashboard.</p>
               </div>
 
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
+                  <AlertCircle size={18} />
+                  <span className="text-sm">{error}</span>
+                </div>
+              )}
+
               <div className="space-y-4">
                  <Input 
                    placeholder="name@example.com" 
                    className="bg-zinc-900 border-transparent focus:bg-zinc-800 text-lg h-14"
                    value={email}
                    onChange={(e) => setEmail(e.target.value)}
+                   disabled={loading}
                  />
                  <Input 
                    type="password"
@@ -148,6 +182,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                    className="bg-zinc-900 border-transparent focus:bg-zinc-800 text-lg h-14"
                    value={password}
                    onChange={(e) => setPassword(e.target.value)}
+                   disabled={loading}
+                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                  />
                  <div className="flex justify-end">
                    <button className="text-gold-500 text-sm hover:underline">Forgot Password?</button>
@@ -157,9 +193,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               <Button 
                 onClick={handleLogin} 
                 className="w-full h-14 text-lg font-medium bg-white text-black hover:bg-zinc-200 border-none"
+                disabled={loading || !email || !password}
               >
-                Continue
+                {loading ? 'Signing in...' : 'Continue'}
               </Button>
+
+              {/* Demo Info */}
+              <div className="p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg">
+                <p className="text-zinc-400 text-xs">
+                  <strong className="text-gold-500">Demo Mode:</strong> Credentials are pre-filled. Click Continue to login.
+                </p>
+              </div>
 
               {/* Social Login Section */}
               <div className="relative py-4">
@@ -171,7 +215,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 </div>
               </div>
 
-              <button className="w-full h-14 rounded-lg bg-zinc-900 text-white font-medium flex items-center justify-center gap-3 hover:bg-zinc-800 transition-colors">
+              <button className="w-full h-14 rounded-lg bg-zinc-900 text-white font-medium flex items-center justify-center gap-3 hover:bg-zinc-800 transition-colors" disabled={loading}>
                  <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>

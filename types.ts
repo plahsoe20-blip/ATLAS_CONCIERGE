@@ -167,7 +167,8 @@ export interface UserProfile {
   phone: string;
   avatar: string;
   role: UserRole;
-  settings: {
+  companyId?: string;
+  settings?: {
     notifications: boolean;
     darkMode: boolean;
   };

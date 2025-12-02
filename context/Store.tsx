@@ -4,7 +4,7 @@ import {
   BookingStatus, BookingType, ActiveTrip, UserRole, UserProfile, 
   DriverProfile, Notification, PaymentTransaction, VIPPreferences, ItineraryDay 
 } from '../types';
-import { mockLogin } from '../services/authService';
+import { authService, rideService, driverService, webSocketService } from '../services/api';
 import { squarePreAuthorize, squareCapture } from '../services/paymentService';
 
 // --- INITIAL DATA CONSTANTS ---
@@ -76,23 +76,156 @@ export const GlobalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Simulation Refs
   const simulationInterval = useRef<any>(null);
 
+  // Load initial data on mount
+  useEffect(() => {
+    const initializeData = async () => {
+      // Check if user is already authenticated
+      const token = authService.isAuthenticated();
+      if (token) {
+        try {
+          const userData = await authService.getCurrentUser();
+          const user: UserProfile = {
+            id: userData.id,
+            name: `${userData.firstName} ${userData.lastName}`,
+            email: userData.email,
+            phone: userData.phone || '',
+            role: userData.role as UserRole,
+            avatar: userData.avatar || '',
+            companyId: userData.companyId
+          };
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+          
+          // Connect WebSocket
+          webSocketService.connect();
+
+          // Load drivers if operator/concierge
+          if (user.role === 'OPERATOR' || user.role === 'CONCIERGE') {
+            const driversData = await driverService.getDrivers();
+            const mappedDrivers: DriverProfile[] = driversData.map(d => ({
+              id: d.id,
+              name: `${d.user.firstName} ${d.user.lastName}`,
+              email: d.user.email,
+              phone: d.user.phone || '',
+              avatar: '',
+              status: d.status as any,
+              licenseNumber: d.licenseNumber,
+              licenseExpiry: d.licenseExpiry,
+              rating: d.rating,
+              totalTrips: d.totalRides,
+              documents: {
+                license: true,
+                backgroundCheck: d.isVerified,
+                insurance: true
+              }
+            }));
+            setDrivers(mappedDrivers);
+          }
+
+          // Load active rides
+          const rides = await rideService.getRides();
+          const mappedRequests: QuoteRequest[] = rides
+            .filter(r => r.status !== 'COMPLETED' && r.status !== 'CANCELLED')
+            .map(r => ({
+              id: r.id,
+              conciergeId: user.id,
+              status: r.status as BookingStatus,
+              createdAt: new Date(r.createdAt).getTime(),
+              details: {
+                type: BookingType.P2P,
+                pickupLocation: r.pickupAddress,
+                dropoffLocation: r.dropoffAddress,
+                date: new Date(r.pickupTime).toISOString().split('T')[0],
+                time: new Date(r.pickupTime).toTimeString().split(' ')[0],
+                vehicleCategory: VehicleCategory.SEDAN,
+                passengerCount: 1,
+                luggageCount: 0,
+                specialRequests: r.specialRequests
+              },
+              estimatedPrice: r.totalFare
+            }));
+          setActiveRequests(mappedRequests);
+        } catch (error) {
+          console.error('Failed to initialize data:', error);
+          authService.logout();
+        }
+      }
+    };
+
+    initializeData();
+
+    // Setup WebSocket listeners
+    webSocketService.onRideCreated((data) => {
+      triggerNotification('INFO', 'New Ride Request', `From ${data.passengerName}`);
+    });
+
+    webSocketService.onRideStatusUpdated((data) => {
+      setActiveRequests(prev => prev.map(r => 
+        r.id === data.rideId ? { ...r, status: data.status } : r
+      ));
+    });
+
+    webSocketService.onDriverLocationUpdated((data) => {
+      if (activeTrip?.driverId === data.driverId) {
+        setActiveTrip(prev => prev ? {
+          ...prev,
+          currentLocation: {
+            lat: data.lat,
+            lng: data.lng,
+            heading: data.heading || 0,
+            speed: data.speed || 0,
+            timestamp: Date.now()
+          }
+        } : null);
+      }
+    });
+
+    return () => {
+      webSocketService.removeAllListeners();
+    };
+  }, []);
+
   // --- AUTH ACTIONS ---
   const login = async (role: UserRole) => {
     try {
-      const { user, token } = await mockLogin(role);
+      // For demo, use predefined test accounts
+      const testAccounts = {
+        CONCIERGE: { email: 'concierge@atlas.com', password: 'Password123!', companyId: 'company_1' },
+        DRIVER: { email: 'driver@atlas.com', password: 'Password123!', companyId: 'company_1' },
+        OPERATOR: { email: 'operator@atlas.com', password: 'Password123!', companyId: 'company_1' }
+      };
+
+      const credentials = testAccounts[role];
+      const response = await authService.login(credentials);
+      
+      const user: UserProfile = {
+        id: response.user.id,
+        name: `${response.user.firstName} ${response.user.lastName}`,
+        email: response.user.email,
+        phone: '',
+        role: response.user.role as UserRole,
+        avatar: '',
+        companyId: response.user.companyId
+      };
+
       setCurrentUser(user);
       setIsAuthenticated(true);
-      localStorage.setItem('atlas_token', token); // Persist session
+      
+      // Connect WebSocket
+      webSocketService.connect();
+      
       triggerNotification('SUCCESS', `Welcome Back, ${user.name}`, `Logged in as ${role}`);
-    } catch (e) {
-      triggerNotification('ERROR', 'Login Failed', 'Invalid credentials');
+    } catch (e: any) {
+      console.error('Login error:', e);
+      triggerNotification('ERROR', 'Login Failed', e.message || 'Invalid credentials');
     }
   };
 
   const logout = () => {
+    authService.logout();
+    webSocketService.disconnect();
     setIsAuthenticated(false);
     setCurrentUser({} as UserProfile);
-    localStorage.removeItem('atlas_token');
   };
 
   const updateUserProfile = async (data: Partial<UserProfile>) => {
@@ -114,43 +247,43 @@ export const GlobalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // --- BOOKING LIFECYCLE ENGINE ---
   
   const createBookingRequest = async (details: any): Promise<string> => {
-    await new Promise(resolve => setTimeout(resolve, 800)); // Latency
-    const newId = `REQ-${Math.floor(Math.random() * 10000)}`;
-    
-    const newRequest: QuoteRequest = {
-      id: newId,
-      conciergeId: currentUser.id,
-      status: BookingStatus.SOURCING,
-      createdAt: Date.now(),
-      details: details,
-      estimatedPrice: details.estimatedPrice || 0
-    };
-
-    setActiveRequests(prev => [newRequest, ...prev]);
-    triggerNotification('INFO', 'Sourcing Operators', 'Request broadcasted to network.');
-    
-    // Simulate incoming quotes from other operators
-    setTimeout(() => {
-      const botQuote: OperatorQuote = {
-        id: `Q-BOT-${Date.now()}`,
-        requestId: newId,
-        operatorId: 'op_bot_1',
-        operatorName: 'Prestige Worldwide',
-        vehicleId: 'v_bot',
-        vehicleName: 'Cadillac Escalade',
-        vehicleImage: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=800',
-        vehicleCategory: details.vehicleCategory,
-        price: details.estimatedPrice * 1.1,
-        eta: 15,
-        rating: 4.8,
-        status: 'PENDING'
+    try {
+      const rideData = {
+        rideType: 'IMMEDIATE' as const,
+        passengerName: details.passengerName,
+        passengerPhone: details.passengerPhone,
+        passengerEmail: details.passengerEmail,
+        pickupAddress: details.pickupLocation,
+        pickupLat: 40.7580, // TODO: Get from geocoding
+        pickupLng: -73.9855,
+        pickupTime: new Date(details.pickupTime).toISOString(),
+        dropoffAddress: details.dropoffLocation,
+        dropoffLat: 40.6413,
+        dropoffLng: -73.7781,
+        specialRequests: details.specialRequests,
+        baseFare: details.estimatedPrice || 0,
+        totalFare: details.estimatedPrice || 0
       };
-      setMarketplaceQuotes(prev => [...prev, botQuote]);
-      setActiveRequests(prev => prev.map(r => r.id === newId ? { ...r, status: BookingStatus.QUOTING, quoteCount: 1 } : r));
-      triggerNotification('SUCCESS', 'New Quote Received', 'Prestige Worldwide sent a bid.');
-    }, 3000);
 
-    return newId;
+      const ride = await rideService.createRide(rideData);
+      
+      const newRequest: QuoteRequest = {
+        id: ride.id,
+        conciergeId: currentUser.id,
+        status: ride.status as BookingStatus,
+        createdAt: new Date(ride.createdAt).getTime(),
+        details: details,
+        estimatedPrice: ride.totalFare
+      };
+
+      setActiveRequests(prev => [newRequest, ...prev]);
+      triggerNotification('SUCCESS', 'Ride Created', 'Request sent to available drivers.');
+      
+      return ride.id;
+    } catch (error: any) {
+      triggerNotification('ERROR', 'Failed to Create Ride', error.message);
+      throw error;
+    }
   };
 
   const submitOperatorQuote = async (quoteData: Omit<OperatorQuote, 'id' | 'status'>) => {
@@ -182,31 +315,39 @@ export const GlobalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const assignDriver = async (bookingId: string, driverId: string) => {
-    setActiveRequests(prev => prev.map(r => 
-      r.id === bookingId ? { ...r, status: BookingStatus.DRIVER_ASSIGNED, assignedDriverId: driverId } : r
-    ));
-    
-    // Initialize Active Trip
-    const request = activeRequests.find(r => r.id === bookingId);
-    if (request) {
-      const newTrip: ActiveTrip = {
-        id: `TRIP-${Date.now()}`,
-        bookingId: request.id,
-        driverId: driverId,
-        vehicleId: 'v1', // Mock
-        status: BookingStatus.DRIVER_ASSIGNED,
-        currentLocation: { lat: 40.7580, lng: -73.9855, heading: 0, speed: 0, timestamp: Date.now() },
-        route: {
-          pickup: { lat: 40.7580, lng: -73.9855, address: request.details.pickupLocation },
-          dropoff: { lat: 40.6413, lng: -73.7781, address: request.details.dropoffLocation || '' },
-          polyline: [], totalDistance: 25, totalDuration: 45
-        },
-        estimatedArrival: Date.now() + 15 * 60000,
-        progress: 0
-      };
-      setActiveTrip(newTrip);
+    try {
+      // Get first available vehicle for this driver (simplified)
+      const ride = await rideService.assignDriver(bookingId, driverId, 'vehicle_1');
+      
+      setActiveRequests(prev => prev.map(r => 
+        r.id === bookingId ? { ...r, status: ride.status as BookingStatus, assignedDriverId: driverId } : r
+      ));
+      
+      // Initialize Active Trip
+      const request = activeRequests.find(r => r.id === bookingId);
+      if (request) {
+        const newTrip: ActiveTrip = {
+          id: ride.id,
+          bookingId: request.id,
+          driverId: driverId,
+          vehicleId: ride.vehicleId || 'v1',
+          status: ride.status as BookingStatus,
+          currentLocation: { lat: ride.pickupLat, lng: ride.pickupLng, heading: 0, speed: 0, timestamp: Date.now() },
+          route: {
+            pickup: { lat: ride.pickupLat, lng: ride.pickupLng, address: ride.pickupAddress },
+            dropoff: { lat: ride.dropoffLat, lng: ride.dropoffLng, address: ride.dropoffAddress },
+            polyline: [], totalDistance: ride.distanceKm || 25, totalDuration: ride.durationMinutes || 45
+          },
+          estimatedArrival: Date.now() + 15 * 60000,
+          progress: 0
+        };
+        setActiveTrip(newTrip);
+      }
+      triggerNotification('SUCCESS', 'Driver Assigned', 'Trip pushed to driver device.');
+    } catch (error: any) {
+      triggerNotification('ERROR', 'Assignment Failed', error.message);
+      throw error;
     }
-    triggerNotification('INFO', 'Driver Assigned', 'Trip pushed to driver device.');
   };
 
   // --- DRIVER APP ACTIONS ---
@@ -214,41 +355,63 @@ export const GlobalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!activeTrip) return;
 
     let newStatus = activeTrip.status;
+    let apiStatus = '';
     let notifTitle = '';
     let notifMsg = '';
 
     switch (action) {
       case 'ACCEPT':
         newStatus = BookingStatus.DRIVER_EN_ROUTE;
+        apiStatus = 'CONFIRMED';
         notifTitle = 'Driver En Route';
         notifMsg = 'Vehicle is on the way to pickup.';
         startGPSSimulation(); // Start tracking
         break;
       case 'ARRIVE':
         newStatus = BookingStatus.ARRIVED;
+        apiStatus = 'EN_ROUTE';
         notifTitle = 'Driver Arrived';
         notifMsg = 'Vehicle is at pickup location.';
         break;
       case 'PICKUP':
         newStatus = BookingStatus.IN_PROGRESS;
+        apiStatus = 'IN_PROGRESS';
         notifTitle = 'Trip Started';
         notifMsg = 'Passenger is on board.';
         break;
       case 'COMPLETE':
         newStatus = BookingStatus.COMPLETED;
+        apiStatus = 'COMPLETED';
         notifTitle = 'Trip Completed';
         notifMsg = 'Passenger dropped off.';
         stopGPSSimulation();
-        // Auto Capture Payment
-        const req = activeRequests.find(r => r.id === activeTrip.bookingId);
-        if (req) await squareCapture(`tx_${req.id}`, req.estimatedPrice);
         break;
     }
 
-    // Update Global State
-    setActiveTrip(prev => prev ? { ...prev, status: newStatus } : null);
-    setActiveRequests(prev => prev.map(r => r.id === activeTrip.bookingId ? { ...r, status: newStatus } : r));
-    triggerNotification(action === 'COMPLETE' ? 'SUCCESS' : 'INFO', notifTitle, notifMsg);
+    try {
+      // Update ride status via API
+      await rideService.updateRideStatus(activeTrip.bookingId, apiStatus);
+
+      // Update Global State
+      setActiveTrip(prev => prev ? { ...prev, status: newStatus } : null);
+      setActiveRequests(prev => prev.map(r => r.id === activeTrip.bookingId ? { ...r, status: newStatus } : r));
+      triggerNotification(action === 'COMPLETE' ? 'SUCCESS' : 'INFO', notifTitle, notifMsg);
+
+      // Auto Capture Payment on completion
+      if (action === 'COMPLETE') {
+        const req = activeRequests.find(r => r.id === activeTrip.bookingId);
+        if (req) {
+          try {
+            await squareCapture(`tx_${req.id}`, req.estimatedPrice);
+          } catch (e) {
+            console.error('Payment capture failed:', e);
+          }
+        }
+      }
+    } catch (error: any) {
+      triggerNotification('ERROR', 'Action Failed', error.message);
+      throw error;
+    }
   };
 
   // --- REAL-TIME GPS SIMULATOR ---
@@ -300,10 +463,16 @@ export const GlobalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const cancelBooking = async (bookingId: string, reason: string) => {
-    setActiveRequests(prev => prev.map(r => r.id === bookingId ? { ...r, status: BookingStatus.CANCELLED } : r));
-    setActiveTrip(null);
-    stopGPSSimulation();
-    triggerNotification('WARNING', 'Booking Cancelled', reason);
+    try {
+      await rideService.cancelRide(bookingId, reason);
+      setActiveRequests(prev => prev.map(r => r.id === bookingId ? { ...r, status: BookingStatus.CANCELLED } : r));
+      setActiveTrip(null);
+      stopGPSSimulation();
+      triggerNotification('WARNING', 'Booking Cancelled', reason);
+    } catch (error: any) {
+      triggerNotification('ERROR', 'Cancellation Failed', error.message);
+      throw error;
+    }
   };
 
   const addDriver = async (driver: Omit<DriverProfile, 'id'>) => {

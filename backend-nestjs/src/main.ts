@@ -3,7 +3,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
-import * as compression from 'compression';
+import compression from 'compression';
 import { AppModule } from './app.module';
 import { LoggerService } from './common/logger';
 import { PrismaService } from './common/prisma';
@@ -106,7 +106,6 @@ async function bootstrap(): Promise<void> {
         'Multi-tenant ride dispatch platform with real-time tracking, payments, and concierge services',
       )
       .setVersion('1.0')
-      .setContact('ATLAS Support', 'https://atlasconcierge.com', 'support@atlasconcierge.com')
       .addTag('auth', 'Authentication endpoints')
       .addTag('companies', 'Company management')
       .addTag('users', 'User management')
@@ -154,8 +153,6 @@ async function bootstrap(): Promise<void> {
   // ============================================================================
   // Graceful Shutdown
   // ============================================================================
-  await prismaService.enableShutdownHooks(app);
-
   app.enableShutdownHooks();
 
   // ============================================================================

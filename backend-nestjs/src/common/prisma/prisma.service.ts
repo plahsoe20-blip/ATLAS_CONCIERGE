@@ -31,7 +31,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   // Helper method to enable soft deletes
   async softDelete(model: string, where: any) {
-    return this[model].update({
+    // Type-safe model access
+    const modelDelegate = (this as any)[model];
+    if (!modelDelegate || typeof modelDelegate.update !== 'function') {
+      throw new Error(`Invalid model: ${model}`);
+    }
+    return modelDelegate.update({
       where,
       data: { isActive: false },
     });
@@ -43,14 +48,18 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       throw new Error('Cannot clean database in production!');
     }
 
-    const models = Reflect.ownKeys(this).filter((key) => key[0] !== '_');
+    const models = Reflect.ownKeys(this).filter((key) => {
+      const keyStr = String(key);
+      return !keyStr.startsWith('_') && !keyStr.startsWith('$');
+    });
 
     return Promise.all(
       models.map((modelKey) => {
-        const model = this[modelKey as string];
+        const model = (this as any)[modelKey];
         if (model && typeof model.deleteMany === 'function') {
           return model.deleteMany();
         }
+        return Promise.resolve();
       }),
     );
   }

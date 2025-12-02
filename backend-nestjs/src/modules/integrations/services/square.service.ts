@@ -16,11 +16,11 @@ export class SquareService {
         : Environment.Sandbox;
 
     this.client = new Client({
-      accessToken: this.configService.get('SQUARE_ACCESS_TOKEN'),
+      accessToken: this.configService.get('SQUARE_ACCESS_TOKEN') || '',
       environment,
     });
 
-    this.locationId = this.configService.get('SQUARE_LOCATION_ID');
+    this.locationId = this.configService.get('SQUARE_LOCATION_ID') || '';
   }
 
   async createPayment(amount: number, sourceId: string, note?: string) {
@@ -41,11 +41,15 @@ export class SquareService {
 
       const payment = response.result.payment;
 
+      if (!payment) {
+        throw new Error('Payment creation failed - no payment object returned');
+      }
+
       return {
-        id: payment.id,
+        id: payment.id || '',
         status: payment.status,
-        amount: Number(payment.amountMoney?.amount) / 100,
-        currency: payment.amountMoney?.currency,
+        amount: Number(payment.amountMoney?.amount || 0) / 100,
+        currency: payment.amountMoney?.currency || 'USD',
         orderId: payment.orderId,
         receiptUrl: payment.receiptUrl,
         createdAt: payment.createdAt,
@@ -61,11 +65,16 @@ export class SquareService {
 
   async capturePayment(paymentId: string) {
     try {
-      const response = await this.client.paymentsApi.completePayment(paymentId);
+      const response = await this.client.paymentsApi.completePayment(paymentId, {});
+
+      const payment = response.result.payment;
+      if (!payment) {
+        throw new Error('Payment capture failed - no payment object returned');
+      }
 
       return {
-        id: response.result.payment.id,
-        status: response.result.payment.status,
+        id: payment.id || '',
+        status: payment.status,
       };
     } catch (error) {
       this.logger.error(`Failed to capture payment: ${error.message}`);
@@ -90,10 +99,15 @@ export class SquareService {
         ...(reason && { reason }),
       });
 
+      const refund = response.result.refund;
+      if (!refund) {
+        throw new Error('Refund failed - no refund object returned');
+      }
+
       return {
-        id: response.result.refund.id,
-        status: response.result.refund.status,
-        amount: Number(response.result.refund.amountMoney?.amount) / 100,
+        id: refund.id || '',
+        status: refund.status,
+        amount: Number(refund.amountMoney?.amount || 0) / 100,
       };
     } catch (error) {
       this.logger.error(`Failed to refund payment: ${error.message}`);
@@ -110,11 +124,15 @@ export class SquareService {
 
       const payment = response.result.payment;
 
+      if (!payment) {
+        throw new Error('Payment not found');
+      }
+
       return {
-        id: payment.id,
+        id: payment.id || '',
         status: payment.status,
-        amount: Number(payment.amountMoney?.amount) / 100,
-        currency: payment.amountMoney?.currency,
+        amount: Number(payment.amountMoney?.amount || 0) / 100,
+        currency: payment.amountMoney?.currency || 'USD',
         orderId: payment.orderId,
         receiptUrl: payment.receiptUrl,
         createdAt: payment.createdAt,
@@ -128,13 +146,17 @@ export class SquareService {
 
   async listPayments(beginTime?: string, endTime?: string) {
     try {
-      const response = await this.client.paymentsApi.listPayments({
+      // Square SDK requires specific parameter structure
+      const request: any = {
         locationId: this.locationId,
-        beginTime,
-        endTime,
         sortOrder: 'DESC',
         limit: 100,
-      });
+      };
+      
+      if (beginTime) request.beginTime = beginTime;
+      if (endTime) request.endTime = endTime;
+
+      const response = await this.client.paymentsApi.listPayments(request);
 
       return response.result.payments?.map((payment) => ({
         id: payment.id,
