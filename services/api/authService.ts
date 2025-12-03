@@ -44,14 +44,14 @@ class AuthService {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
       const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
-      
+
       // Store tokens and user info
       localStorage.setItem('accessToken', response.data.accessToken);
       localStorage.setItem('refreshToken', response.data.refreshToken);
       localStorage.setItem('companyId', response.data.user.companyId);
       localStorage.setItem('userId', response.data.user.id);
       localStorage.setItem('userRole', response.data.user.role);
-      
+
       return response.data;
     } catch (error) {
       throw new Error(handleApiError(error));
@@ -61,14 +61,14 @@ class AuthService {
   async register(data: RegisterData): Promise<AuthResponse> {
     try {
       const response = await apiClient.post<AuthResponse>('/auth/register', data);
-      
+
       // Store tokens and user info
       localStorage.setItem('accessToken', response.data.accessToken);
       localStorage.setItem('refreshToken', response.data.refreshToken);
       localStorage.setItem('companyId', response.data.user.companyId);
       localStorage.setItem('userId', response.data.user.id);
       localStorage.setItem('userRole', response.data.user.role);
-      
+
       return response.data;
     } catch (error) {
       throw new Error(handleApiError(error));

@@ -97,4 +97,4 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
   ],
   controllers: [HealthController],
 })
-export class AppModule {}
+export class AppModule { }

@@ -7,4 +7,4 @@ import { SquareService } from './services/square.service';
   providers: [GoogleMapsService, SquareService],
   exports: [GoogleMapsService, SquareService],
 })
-export class IntegrationsModule {}
+export class IntegrationsModule { }

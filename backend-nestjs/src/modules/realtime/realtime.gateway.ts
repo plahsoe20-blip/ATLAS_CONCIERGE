@@ -29,7 +29,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(
     private jwtService: JwtService,
     private prisma: PrismaService,
-  ) {}
+  ) { }
 
   async handleConnection(client: Socket) {
     try {

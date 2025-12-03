@@ -13,7 +13,7 @@ import { PrismaService } from './common/prisma';
 @ApiTags('health')
 @Controller('health')
 export class HealthController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Basic health check endpoint

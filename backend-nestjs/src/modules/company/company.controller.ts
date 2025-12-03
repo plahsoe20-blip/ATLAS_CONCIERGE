@@ -18,7 +18,7 @@ import { CurrentCompany } from '../../common/decorators/current-user.decorator';
 
 @Controller('companies')
 export class CompanyController {
-  constructor(private readonly companyService: CompanyService) {}
+  constructor(private readonly companyService: CompanyService) { }
 
   @Public()
   @Post()

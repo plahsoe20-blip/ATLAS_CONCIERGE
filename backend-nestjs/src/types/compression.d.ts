@@ -1,7 +1,7 @@
 // Type declaration for compression module
 declare module 'compression' {
   import { RequestHandler } from 'express';
-  
+
   interface CompressionOptions {
     threshold?: number | string;
     level?: number;
@@ -11,6 +11,6 @@ declare module 'compression' {
   }
 
   function compression(options?: CompressionOptions): RequestHandler;
-  
+
   export = compression;
 }

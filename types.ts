@@ -43,12 +43,12 @@ export interface PricingRule {
   baseP2P: number;
   perKm: number;
   minHours: number;
-  driverCommissionPct: number; 
-  taxRate: number; 
+  driverCommissionPct: number;
+  taxRate: number;
 }
 
 export interface Quote {
-  subtotal: number; 
+  subtotal: number;
   tax: number;
   platformFee: number;
   total: number;
@@ -79,7 +79,7 @@ export interface ItineraryDay {
   time: string;
   hours: number;
   pickupLocation: string;
-  dropoffLocation?: string; 
+  dropoffLocation?: string;
   notes?: string;
 }
 
@@ -250,7 +250,7 @@ export interface BookingRequest {
   distanceKm?: number;
   vehicleId?: string;
   passengerCount: number;
-  quote?: Quote; 
+  quote?: Quote;
   preferences?: VIPPreferences; // Updated
   itinerary?: ItineraryDay[];
 }
@@ -260,5 +260,5 @@ export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
   isThinking?: boolean;
-  groundingSources?: Array<{uri: string; title: string}>;
+  groundingSources?: Array<{ uri: string; title: string }>;
 }

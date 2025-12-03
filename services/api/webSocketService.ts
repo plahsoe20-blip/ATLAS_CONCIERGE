@@ -9,7 +9,7 @@ class WebSocketService {
 
   connect(): void {
     const token = localStorage.getItem('accessToken');
-    
+
     if (!token) {
       console.warn('No access token found. Cannot connect to WebSocket.');
       return;
@@ -38,7 +38,7 @@ class WebSocketService {
     this.socket.on('connect_error', (error) => {
       console.error('❌ WebSocket connection error:', error);
       this.reconnectAttempts++;
-      
+
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
         console.error('Max reconnection attempts reached');
         this.socket?.close();

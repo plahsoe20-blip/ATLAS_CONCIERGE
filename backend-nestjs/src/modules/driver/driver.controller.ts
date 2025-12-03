@@ -9,7 +9,7 @@ import { UserRole, DriverStatus } from '@prisma/client';
 
 @Controller('drivers')
 export class DriverController {
-  constructor(private readonly driverService: DriverService) {}
+  constructor(private readonly driverService: DriverService) { }
 
   @Roles(UserRole.COMPANY_ADMIN, UserRole.DISPATCHER)
   @Post()

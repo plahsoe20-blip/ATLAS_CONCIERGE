@@ -7,7 +7,7 @@ import { UserRole } from '@prisma/client';
 
 @Controller('users')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   @Get()
   findAll(@CurrentCompany() companyId: string, @Query('role') role?: string) {

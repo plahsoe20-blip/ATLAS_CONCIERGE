@@ -82,7 +82,7 @@ export const getMyBookings = async (req, res, next) => {
     const { status, limit = 50, offset = 0 } = req.query;
 
     let filters = {};
-    
+
     // Filter based on user role
     switch (req.user.role) {
       case 'CONCIERGE':

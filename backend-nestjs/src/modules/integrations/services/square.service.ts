@@ -152,7 +152,7 @@ export class SquareService {
         sortOrder: 'DESC',
         limit: 100,
       };
-      
+
       if (beginTime) request.beginTime = beginTime;
       if (endTime) request.endTime = endTime;
 

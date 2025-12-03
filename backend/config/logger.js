@@ -20,14 +20,14 @@ const logger = winston.createLogger({
   defaultMeta: { service: 'atlas-backend' },
   transports: [
     // Write all logs with level 'error' and below to error.log
-    new winston.transports.File({ 
-      filename: path.join(__dirname, '../logs/error.log'), 
+    new winston.transports.File({
+      filename: path.join(__dirname, '../logs/error.log'),
       level: 'error',
       maxsize: 5242880, // 5MB
       maxFiles: 5
     }),
     // Write all logs to combined.log
-    new winston.transports.File({ 
+    new winston.transports.File({
       filename: path.join(__dirname, '../logs/combined.log'),
       maxsize: 5242880,
       maxFiles: 5

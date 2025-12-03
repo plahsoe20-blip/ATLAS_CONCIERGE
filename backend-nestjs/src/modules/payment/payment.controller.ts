@@ -8,7 +8,7 @@ import { UserRole } from '@prisma/client';
 
 @Controller('payments')
 export class PaymentController {
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(private readonly paymentService: PaymentService) { }
 
   @Roles(UserRole.COMPANY_ADMIN, UserRole.DISPATCHER)
   @Post()

@@ -60,16 +60,16 @@ export const calculateQuote = async (params) => {
 
 const getTaxRateForLocation = (location) => {
   if (!location) return 0.05;
-  
+
   const lower = location.toLowerCase();
-  
+
   if (lower.includes('ny') || lower.includes('new york') || lower.includes('manhattan')) return 0.08875;
   if (lower.includes('ca') || lower.includes('california') || lower.includes('los angeles')) return 0.095;
   if (lower.includes('fl') || lower.includes('florida') || lower.includes('miami')) return 0.07;
   if (lower.includes('tx') || lower.includes('texas')) return 0.0825;
   if (lower.includes('london') || lower.includes('uk')) return 0.20;
   if (lower.includes('dubai') || lower.includes('uae')) return 0.05;
-  
+
   return 0.05;
 };
 

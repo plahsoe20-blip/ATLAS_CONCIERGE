@@ -81,7 +81,7 @@ export const initializeSocketHandlers = (socketIO) => {
 // Broadcast to all operators
 export const broadcastToOperators = (data) => {
   if (!io) return;
-  
+
   connectedUsers.forEach((userData, userId) => {
     if (userData.role === 'OPERATOR') {
       io.to(userData.socketId).emit('operator_notification', data);
@@ -92,7 +92,7 @@ export const broadcastToOperators = (data) => {
 // Send to specific user
 export const sendToUser = (userId, event, data) => {
   if (!io) return;
-  
+
   const user = connectedUsers.get(userId);
   if (user) {
     io.to(user.socketId).emit(event, data);

@@ -4,10 +4,10 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { SessionService } from './services/session.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -16,9 +16,8 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 export class AuthService {
   constructor(
     private prisma: PrismaService,
-    private jwtService: JwtService,
-    private configService: ConfigService,
-  ) {}
+    private sessionService: SessionService,
+  ) { }
 
   async register(registerDto: RegisterDto) {
     const { email, password, companyId, firstName, lastName, role, phone } = registerDto;
@@ -71,12 +70,14 @@ export class AuthService {
       },
     });
 
-    // Generate tokens
-    const tokens = await this.generateTokens(user);
+    // Create session
+    const session = await this.sessionService.createSession(user.id);
 
     return {
       user,
-      ...tokens,
+      sessionToken: session.token,
+      refreshToken: session.refreshToken,
+      expiresAt: session.expiresAt,
     };
   }
 
@@ -115,8 +116,8 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    // Generate tokens
-    const tokens = await this.generateTokens(user);
+    // Create session
+    const session = await this.sessionService.createSession(user.id);
 
     return {
       user: {
@@ -127,30 +128,26 @@ export class AuthService {
         role: user.role,
         companyId: user.companyId,
       },
-      ...tokens,
+      sessionToken: session.token,
+      refreshToken: session.refreshToken,
+      expiresAt: session.expiresAt,
     };
   }
 
   async refreshToken(refreshTokenDto: RefreshTokenDto) {
     const { refreshToken } = refreshTokenDto;
 
-    try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get('JWT_REFRESH_SECRET'),
-      });
+    const session = await this.sessionService.refreshSession(refreshToken);
 
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
-      });
-
-      if (!user || !user.isActive) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
-
-      return this.generateTokens(user);
-    } catch (error) {
-      throw new UnauthorizedException('Invalid refresh token');
+    if (!session) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
+
+    return {
+      sessionToken: session.token,
+      refreshToken: session.refreshToken,
+      expiresAt: session.expiresAt,
+    };
   }
 
   async validateUser(userId: string) {
@@ -174,29 +171,20 @@ export class AuthService {
     return user;
   }
 
-  private async generateTokens(user: any) {
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      companyId: user.companyId,
-    };
+  async logout(sessionToken: string): Promise<void> {
+    await this.sessionService.deleteSession(sessionToken);
+  }
 
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: this.configService.get('JWT_SECRET'),
-        expiresIn: this.configService.get('JWT_EXPIRES_IN'),
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: this.configService.get('JWT_REFRESH_SECRET'),
-        expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN'),
-      }),
-    ]);
+  async logoutAll(userId: string): Promise<void> {
+    await this.sessionService.deleteAllUserSessions(userId);
+  }
 
-    return {
-      accessToken,
-      refreshToken,
-      expiresIn: this.configService.get('JWT_EXPIRES_IN'),
-    };
+  // Cron job to clean up expired sessions every hour
+  @Cron(CronExpression.EVERY_HOUR)
+  async cleanupExpiredSessions() {
+    const count = await this.sessionService.cleanupExpiredSessions();
+    if (count > 0) {
+      console.log(`Cleaned up ${count} expired sessions`);
+    }
   }
 }

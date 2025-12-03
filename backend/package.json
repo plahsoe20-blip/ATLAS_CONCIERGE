@@ -10,7 +10,12 @@
     "test": "jest",
     "lint": "eslint ."
   },
-  "keywords": ["atlas", "concierge", "transportation", "luxury"],
+  "keywords": [
+    "atlas",
+    "concierge",
+    "transportation",
+    "luxury"
+  ],
   "author": "ATLAS Team",
   "license": "MIT",
   "dependencies": {

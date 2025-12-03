@@ -10,7 +10,7 @@ export class PaymentService {
   constructor(
     private prisma: PrismaService,
     private squareService: SquareService,
-  ) {}
+  ) { }
 
   async create(companyId: string, createPaymentDto: CreatePaymentDto) {
     const { rideId, amount, method, ...paymentData } = createPaymentDto;

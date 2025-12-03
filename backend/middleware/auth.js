@@ -15,12 +15,12 @@ export const authMiddleware = (req, res, next) => {
 
     // Verify token
     const decoded = jwt.verify(token, config.jwt.secret);
-    
+
     // Attach user info to request
     req.user = decoded;
-    
+
     logger.debug(`Authenticated request from user ${decoded.id} (${decoded.role})`);
-    
+
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

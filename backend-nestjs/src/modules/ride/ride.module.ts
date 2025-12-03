@@ -9,4 +9,4 @@ import { IntegrationsModule } from '../integrations/integrations.module';
   providers: [RideService],
   exports: [RideService],
 })
-export class RideModule {}
+export class RideModule { }

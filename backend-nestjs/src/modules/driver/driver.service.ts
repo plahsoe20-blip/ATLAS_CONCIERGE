@@ -7,7 +7,7 @@ import { DriverStatus } from '@prisma/client';
 
 @Injectable()
 export class DriverService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(companyId: string, createDriverDto: CreateDriverDto) {
     return this.prisma.driver.create({

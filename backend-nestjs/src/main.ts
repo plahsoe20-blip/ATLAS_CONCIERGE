@@ -70,7 +70,7 @@ async function bootstrap(): Promise<void> {
   // ============================================================================
   // Global Configuration
   // ============================================================================
-  
+
   // API Versioning
   app.enableVersioning({
     type: VersioningType.URI,
@@ -174,7 +174,7 @@ async function bootstrap(): Promise<void> {
   loggerService.log(`🔗 Server running on: ${appUrl}`);
   loggerService.log(`📚 API Documentation: ${appUrl}`);
   loggerService.log(`❤️  Health Check: http://localhost:${port}/health`);
-  
+
   if (environment === 'development') {
     loggerService.log(`🔧 Prisma Studio: Run 'npm run prisma:studio'`);
   }
