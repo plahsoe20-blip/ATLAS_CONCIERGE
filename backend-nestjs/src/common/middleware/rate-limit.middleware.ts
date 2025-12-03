@@ -1,59 +1,67 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { RedisService } from '@liaoliaots/nestjs-redis';
+// import { RedisService } from '@liaoliaots/nestjs-redis';
 
 interface RateLimitOptions {
   windowMs: number;
   maxRequests: number;
 }
 
+// Extend Request to include user
+interface RequestWithUser extends Request {
+  user?: {
+    id?: string;
+  };
+  ip: string;
+}
+
 @Injectable()
 export class RateLimitMiddleware implements NestMiddleware {
   private readonly windowMs: number;
   private readonly maxRequests: number;
+  private readonly requestCounts: Map<string, { count: number; resetTime: number }> = new Map();
 
-  constructor(private readonly redisService: RedisService) {
+  constructor() {
     this.windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10); // 15 min
     this.maxRequests = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10);
   }
 
-  async use(req: Request, res: Response, next: NextFunction) {
-    const redis = this.redisService.getClient();
-
+  async use(req: RequestWithUser, res: Response, next: NextFunction) {
     // Use IP or user ID as key
-    const identifier = req.user?.id || req.ip;
+    const identifier = req.user?.id || req.ip || 'unknown';
     const key = `rate-limit:${identifier}`;
 
     try {
-      const current = await redis.get(key);
-      const requests = current ? parseInt(current, 10) : 0;
+      const now = Date.now();
+      const record = this.requestCounts.get(key);
 
-      if (requests >= this.maxRequests) {
-        return res.status(429).json({
-          statusCode: 429,
-          message: 'Too many requests, please try again later',
-          error: 'Too Many Requests',
-          retryAfter: this.windowMs / 1000,
+      if (record && now < record.resetTime) {
+        if (record.count >= this.maxRequests) {
+          return res.status(429).json({
+            statusCode: 429,
+            message: 'Too many requests, please try again later',
+            error: 'Too Many Requests',
+            retryAfter: Math.ceil((record.resetTime - now) / 1000),
+          });
+        }
+        record.count++;
+      } else {
+        this.requestCounts.set(key, {
+          count: 1,
+          resetTime: now + this.windowMs,
         });
       }
 
-      // Increment counter
-      const pipeline = redis.pipeline();
-      pipeline.incr(key);
-      if (!current) {
-        pipeline.expire(key, this.windowMs / 1000);
-      }
-      await pipeline.exec();
-
+      const currentRecord = this.requestCounts.get(key)!;
       // Add rate limit headers
       res.setHeader('X-RateLimit-Limit', this.maxRequests);
-      res.setHeader('X-RateLimit-Remaining', this.maxRequests - requests - 1);
-      res.setHeader('X-RateLimit-Reset', Date.now() + this.windowMs);
+      res.setHeader('X-RateLimit-Remaining', Math.max(0, this.maxRequests - currentRecord.count));
+      res.setHeader('X-RateLimit-Reset', currentRecord.resetTime);
 
       next();
     } catch (error) {
       console.error('Rate limit middleware error:', error);
-      next(); // Fail open - don't block requests if Redis is down
+      next(); // Fail open - don't block requests if there's an error
     }
   }
 }

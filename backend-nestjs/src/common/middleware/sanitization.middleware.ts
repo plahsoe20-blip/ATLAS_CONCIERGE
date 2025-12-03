@@ -1,48 +1,49 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import * as xss from 'xss';
+// import * as xss from 'xss';
+
+// Simple XSS sanitization function
+const sanitizeValue = (value: any): any => {
+  if (typeof value === 'string') {
+    return value
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
+      .replace(/\//g, '&#x2F;');
+  }
+  if (Array.isArray(value)) {
+    return value.map(sanitizeValue);
+  }
+  if (typeof value === 'object' && value !== null) {
+    const sanitized: any = {};
+    for (const key in value) {
+      sanitized[key] = sanitizeValue(value[key]);
+    }
+    return sanitized;
+  }
+  return value;
+};
 
 @Injectable()
 export class InputSanitizationMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     // Sanitize request body
     if (req.body) {
-      req.body = this.sanitizeObject(req.body);
+      req.body = sanitizeValue(req.body);
     }
 
     // Sanitize query parameters
     if (req.query) {
-      req.query = this.sanitizeObject(req.query);
+      req.query = sanitizeValue(req.query);
     }
 
     // Sanitize URL parameters
     if (req.params) {
-      req.params = this.sanitizeObject(req.params);
+      req.params = sanitizeValue(req.params);
     }
 
     next();
-  }
-
-  private sanitizeObject(obj: any): any {
-    if (typeof obj === 'string') {
-      return xss(obj);
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map((item) => this.sanitizeObject(item));
-    }
-
-    if (obj !== null && typeof obj === 'object') {
-      const sanitized: any = {};
-      for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          sanitized[key] = this.sanitizeObject(obj[key]);
-        }
-      }
-      return sanitized;
-    }
-
-    return obj;
   }
 }
 

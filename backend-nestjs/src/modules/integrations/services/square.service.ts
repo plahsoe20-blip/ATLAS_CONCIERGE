@@ -1,23 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Client, Environment, ApiError } from 'square';
 import { randomUUID } from 'crypto';
+
+// Square SDK - using CommonJS require
+const { SquareClient, SquareEnvironment } = require('square');
 
 @Injectable()
 export class SquareService {
   private readonly logger = new Logger(SquareService.name);
-  private client: Client;
+  private client: any;
   private locationId: string;
 
   constructor(private configService: ConfigService) {
     const environment =
       this.configService.get('SQUARE_ENVIRONMENT') === 'production'
-        ? Environment.Production
-        : Environment.Sandbox;
+        ? SquareEnvironment.Production
+        : SquareEnvironment.Sandbox;
 
-    this.client = new Client({
+    this.client = new SquareClient({
       accessToken: this.configService.get('SQUARE_ACCESS_TOKEN') || '',
-      environment,
+      environment: environment,
     });
 
     this.locationId = this.configService.get('SQUARE_LOCATION_ID') || '';
@@ -54,10 +56,10 @@ export class SquareService {
         receiptUrl: payment.receiptUrl,
         createdAt: payment.createdAt,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to create payment: ${error.message}`);
-      if (error instanceof ApiError) {
-        throw new Error(error.errors?.[0]?.detail || 'Payment failed');
+      if (error.errors && Array.isArray(error.errors)) {
+        throw new Error(error.errors[0]?.detail || 'Payment failed');
       }
       throw error;
     }
@@ -76,10 +78,10 @@ export class SquareService {
         id: payment.id || '',
         status: payment.status,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to capture payment: ${error.message}`);
-      if (error instanceof ApiError) {
-        throw new Error(error.errors?.[0]?.detail || 'Capture failed');
+      if (error.errors && Array.isArray(error.errors)) {
+        throw new Error(error.errors[0]?.detail || 'Payment capture failed');
       }
       throw error;
     }
@@ -109,10 +111,10 @@ export class SquareService {
         status: refund.status,
         amount: Number(refund.amountMoney?.amount || 0) / 100,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to refund payment: ${error.message}`);
-      if (error instanceof ApiError) {
-        throw new Error(error.errors?.[0]?.detail || 'Refund failed');
+      if (error.errors && Array.isArray(error.errors)) {
+        throw new Error(error.errors[0]?.detail || 'Refund failed');
       }
       throw error;
     }
@@ -138,7 +140,7 @@ export class SquareService {
         createdAt: payment.createdAt,
         updatedAt: payment.updatedAt,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to get payment: ${error.message}`);
       throw error;
     }
@@ -158,14 +160,14 @@ export class SquareService {
 
       const response = await this.client.paymentsApi.listPayments(request);
 
-      return response.result.payments?.map((payment) => ({
+      return response.result.payments?.map((payment: any) => ({
         id: payment.id,
         status: payment.status,
         amount: Number(payment.amountMoney?.amount) / 100,
         currency: payment.amountMoney?.currency,
         createdAt: payment.createdAt,
       }));
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to list payments: ${error.message}`);
       throw error;
     }

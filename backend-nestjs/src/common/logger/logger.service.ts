@@ -17,8 +17,8 @@ export class LoggerService implements NestLoggerService {
   private logger: winston.Logger;
   private context?: string;
 
-  constructor(context?: string) {
-    this.context = context;
+  constructor() {
+    this.context = 'Application';
     this.logger = winston.createLogger({
       level: process.env.LOG_LEVEL || 'info',
       format: winston.format.combine(
@@ -27,7 +27,7 @@ export class LoggerService implements NestLoggerService {
         winston.format.splat(),
         winston.format.json(),
       ),
-      defaultMeta: { service: 'atlas-backend', context },
+      defaultMeta: { service: 'atlas-backend', context: this.context },
       transports: this.getTransports(),
     });
   }

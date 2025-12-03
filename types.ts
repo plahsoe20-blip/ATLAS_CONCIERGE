@@ -127,6 +127,18 @@ export interface OperatorQuote {
   status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
 }
 
+export interface QuoteResponse {
+  bookingId: string;
+  operatorId: string;
+  price: number;
+  vehicleId: string;
+  driverId: string;
+  notes?: string;
+  estimatedPickupTime: number;
+  status: 'pending' | 'accepted' | 'declined';
+  submittedAt: number;
+}
+
 export interface DriverLocation {
   lat: number;
   lng: number;
@@ -240,6 +252,7 @@ export interface Driver {
 }
 
 export interface BookingRequest {
+  id?: string;
   type: BookingType;
   pickupLocation: string;
   dropoffLocation?: string;
@@ -249,9 +262,18 @@ export interface BookingRequest {
   durationDays?: number;
   distanceKm?: number;
   vehicleId?: string;
+  vehicleCategory?: VehicleCategory;
   passengerCount: number;
+  passengerName?: string;
+  passengerPhone?: string;
+  passengerEmail?: string;
+  luggageCount?: number;
+  specialRequests?: string;
+  estimatedPrice?: number;
+  pickupTime?: number;
   quote?: Quote;
-  preferences?: VIPPreferences; // Updated
+  quotes?: QuoteResponse[];
+  preferences?: VIPPreferences;
   itinerary?: ItineraryDay[];
 }
 

@@ -1,17 +1,37 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import * as crypto from 'crypto';
+
+// Define custom request type for CSRF middleware
+interface RequestWithSession {
+  method: string;
+  headers: any;
+  body: any;
+  session?: {
+    csrfToken?: string;
+    [key: string]: any;
+  };
+}
 
 @Injectable()
 export class CsrfMiddleware implements NestMiddleware {
-  use(req: Request, res: Response, next: NextFunction) {
+  use(req: RequestWithSession, res: Response, next: NextFunction) {
     // Skip CSRF for GET, HEAD, OPTIONS
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       return next();
     }
 
+    // Ensure session exists
+    if (!req.session) {
+      return res.status(500).json({
+        statusCode: 500,
+        message: 'Session not initialized',
+        error: 'Internal Server Error',
+      });
+    }
+
     // Generate CSRF token if not exists
-    if (!req.session?.csrfToken) {
+    if (!req.session.csrfToken) {
       req.session.csrfToken = crypto.randomBytes(32).toString('hex');
     }
 
@@ -31,9 +51,16 @@ export class CsrfMiddleware implements NestMiddleware {
 }
 
 // CSRF token endpoint
-export const getCsrfToken = (req: Request) => {
+export const getCsrfToken = (req: RequestWithSession) => {
+  // Initialize session if not exists
+  if (!req.session) {
+    throw new Error('Session middleware not configured');
+  }
+
+  // Generate CSRF token if not exists
   if (!req.session.csrfToken) {
     req.session.csrfToken = crypto.randomBytes(32).toString('hex');
   }
+
   return { csrfToken: req.session.csrfToken };
 };
